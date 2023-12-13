@@ -1,0 +1,47 @@
+https://www.fizord.ru/post/421
+
+1. поднимаем на зарубежном сервере свой выделенный VPS, как-то его оплачиваем, соблюдаем правила данного проекта
+2. устанавливаем там openvpn, wireguard или что пожелаете (я выбрал Openvpn и tcp 443 port)
+3. настраиваем ваш Mikrotik (у меня версия 7 и выше):
+
+Interfaces - Add New - OVPN CLient
+Name: vps_vpn
+Dial Out: ... (ваши настройки)
+
+
+Routing - Tables - Add New
+Name: TO-VPN-MARK
+FIB: +
+
+
+IP - Firewall - Mangle - Add New
+Comment: TO-VPN-MARK
+Chain: prerouting
+Dst. Address List: TO-VPN
+In. Interface List: !WAN
+Action: mark routing
+New Routing Mark: TO-VPN-MARK
+Passthrough: +
+
+
+IP - Firewall - NAT - Add New
+Comment: TO-VPN
+Chain: srcnat
+Out. Interface: vps_vpn
+Action: masquerade
+
+
+IP - Routes - Add New
+Dst. Address: 0.0.0.0/0
+Gateway: %vps_vpn
+Distance: 1
+Routing Table: TO-VPN-MARK
+
+
+IP - Firewall - Address_Lists - Add New
+добавляем ип адреса для Name: TO-VPN (так же как и заблокированные ип адреса: /post/420 🙃)
+например:
+Name: TO-VPN
+Address: 2ip.ru
+
+зайдите на 2ip.ru и проверьте изменился ли для вас ип адрес, если нет, то значит что-то надо донастроить
