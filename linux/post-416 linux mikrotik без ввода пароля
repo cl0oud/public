@@ -1,0 +1,48 @@
+https://www.fizord.ru/post/416
+
+создаём на linux публичный ключ
+
+1. на клиенте от которого вы хотите получить доступ без пароля к серверу введите команду
+ssh-keygen -t rsa
+
+2. появится два файла у клиента в директории /root/.ssh/
+id_rsa - закрытый ключ. Его нельзя никому показывать. Если вы в письмо/чат скопипастите его вместо pub, то нужно генерировать новый ключ.
+id_rsa.pub - открытый ключ. Его копируют на сервера, куда нужно получить доступ.
+
+читать: https://www.fizord.ru/post/104
+
+к примеру наш микротик 192.168.0.1, входим к нему через web IP-Services включаем ssh
+
+в linux:
+
+root@desktop:~# cd /root/.ssh/
+root@desktop:~/.ssh# ftp 192.168.0.1
+Connected to 192.168.0.1.
+220 MikroTik FTP server (MikroTik 7.10) ready
+Name (192.168.0.1:root): admin
+331 Password required for admin
+Password:
+230 User admin logged in
+Remote system type is UNIX.
+ftp> put id_rsa.pub
+local: id_rsa.pub remote: id_rsa.pub
+200 PORT command successful
+150 Opening ASCII mode data connection for '/id_rsa.pub'
+226 ASCII transfer complete
+608 bytes sent in 0.00 secs (12007.5 kB/s)
+ftp> exit
+221 Closing
+
+или так: scp id_rsa.pub admin@192.168.0.1:id_rsa.pub
+
+root@desktop:~/.ssh# ssh admin@192.168.0.1
+
+заходим в микротик, введя пароль и вводим:
+[admin@mikroti] > /user ssh-key import public-key-file=id_rsa.pub user=admin
+
+на версии 6 mikrotik у меня не получилось, на версии 7 получилось (после импорта файла, в папке Files должен пропасть файл, если не пропал то импорта не было)
+
+комбинацией Ctrl+A+D выходим из терминала микротик и пробуем ввести:
+root@desktop:~/.ssh# ssh admin@192.168.0.1 /system resource print
+
+должны получить соответствующие данные
