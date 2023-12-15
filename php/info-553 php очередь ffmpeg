@@ -1,0 +1,68 @@
+https://www.fizord.ru/info/553
+
+чтобы ffmpeg не грузил сильно процессор и не создавалось много процессов для конвертирования файлов видео или аудио, необходимо создать очередь для ffmpeg
+
+в php будет что-то вроде:
+//копируем необработанный файл в какую-нибудь папку, которая у вас чистится кроном (на всякий случай)
+//$file_not_optimized и $file_name файлы с директорией
+//у www-data должны быть разрешения на эти папки
+copy($file_name, $file_not_optimized);
+exec("cd /var/www && ./convert_fizord_ru.sh 'video1' '$file_not_optimized' '$file_optimized' >/dev/null 2>/dev/null &");
+
+этим самым мы отправим на обработку shell скрипку
+
+файл convert_fizord_ru.sh
+#!/bin/bash
+####
+
+#при получении задания ждём время
+rand1=2$(($RANDOM % 10)).$((1 + $RANDOM % 10))$(($RANDOM % 10))
+
+echo "ждём sleep $rand1 и начинаем цикл"
+sleep $rand1;
+
+while true; do
+     
+#проверяем существование файла, если его нет то выходим из цикла
+     if [ ! -f $2 ]
+     then
+          echo "файл $2 не существует"
+          break;
+     fi
+
+#смотрим сколько процессов ffmpeg у нас уже запущенно, если их меньше 3, то можно конвертировать
+     FFMPEG_PROCESS=`pgrep ffmpeg | wc -l`
+     if [ "$FFMPEG_PROCESS" -le 3 ]
+     then
+          #echo 'выполнение ffmpeg';
+          case $1 in
+
+          "video1")
+               ffmpeg -i $2 -threads 4 -c:v libx264 -preset slow -crf 25 -c:a aac -b:a 128K -movflags +faststart $3
+               rm -R $2
+               break;
+          ;;
+          "video2")
+               ffmpeg -i $2 -threads 4 -pix_fmt yuv420p -b:v 4000k -c:v libx264 -preset slow -crf 25 -c:a aac -b:a 128K -movflags +faststart $3
+               rm -R $2
+               break;
+          ;;
+          "mp3")
+               ffmpeg -i $2 -vn -ar 44100 -ac 2 -b:a 128k $3
+               rm -R $2
+               break;
+          ;;
+           *)
+               echo -n "unknown $1"
+               ;;
+          esac
+     fi
+
+#если не получилось обработать, т.е выйти с цикла, то начинаем цикл заново
+     rand2=3$(($RANDOM % 10)).$((1 + $RANDOM % 10))$(($RANDOM % 10))
+     echo "ждём sleep $rand2 и продолжаем цикл"
+     sleep $rand2;
+
+done;
+
+Этим самым мы можем много загрузить и ждать, когда потихоньку всё обработается
