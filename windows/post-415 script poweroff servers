@@ -1,0 +1,144 @@
+https://www.fizord.ru/post/415
+
+powershell windows, скрипт для отключения серверов через проверки доступности ип и время в планировщике
+предположительно ваш ИБП имеет запас прочности в 10-20-30 минут
+
+СКРИПТ poweroff.ps1
+
+# ип адреса, которые надо проверять, в коде вписано проверять 3 ип адреса
+$ip1 = "192.168.1.22"
+$ip2 = "192.168.1.30"
+$ip3 = "192.168.1.37"
+
+# количество попыток проверить 1 ип адрес
+$count_ping = 5
+
+# 0 1 2 3 (0 default, 3 попытки, т.е на 3 попытке выключается, если не пингуются)
+# количество попыток в "общем" проверить выключены ли ип адреса,
+# делается через планировщик с промежутком например в 10 минут
+# т.е через 20-30 минут выключится пк/сервер (можете уменьшить количество, если не доверяете своему ИБП)
+$count_off = 3
+
+# местоположение скрипта
+$path = $MyInvocation.MyCommand.Path | split-path -parent
+
+# название файла, куда будут записываться количества попыток
+$textfile_this = "$path\poweroff.txt";
+
+
+function is_numeric($val) {
+     
+return $val -match "^[\d\.]+$"
+
+}
+
+function poweroff($val){
+     
+     # проверяем существование файла 1: poweroff.txt
+     #
+     # если файл не существует, то создаём файл и присваиваем $val
+     if((Test-Path -Path $textfile_this) -eq $False){
+          
+          echo "add file $textfile_this"
+          New-Item -Path $textfile_this -ItemType File
+          $val > $textfile_this
+          $textfile_read = $val
+
+     # если файл существует, то меняем значение файла
+     } else {
+          
+          if($val -eq 1){
+
+               $textfile_read = Get-Content -Path $textfile_this
+               
+               # если значение файла внутри текстового файла число, то увеличиваем на 1
+               if(is_numeric($textfile_read)){
+                    
+                    # если число больше или равно $count_off, то записываем 0 в файл
+                    if([int]$textfile_read -ge $count_off){
+                         
+                         0 > $textfile_this
+                         
+                    } else {
+                         
+                         $textfile_int = [int]$textfile_read + 1
+                         
+                         # если новое число равно 2, то выключаем сервера
+                         if($textfile_int -eq $count_off){
+                              
+                              #на будущее запишем сразу 0
+                              0 > $textfile_this
+                              
+                              #выключение
+                              echo "poweroff this computer/server"
+                              shutdown /s
+                         
+                         # если новое число не равно $count_off, то записываем число в файл
+                         } else {
+                              
+                              echo "textfile_read = $textfile_int"
+                              $textfile_int > $textfile_this
+                              
+                         }
+                    }
+               
+               # если значение файла внутри текстового файла число, то присваиваем 0
+               } else {
+                    
+                    echo "bad text in file, new text = 0"
+                    0 > $textfile_this
+               }
+
+          } else {
+
+               0 > $textfile_this
+               $textfile_read = 0
+
+          }
+     }
+}
+
+
+if((Test-Connection -ComputerName $ip1 -count $count_ping -quiet) -eq $True){
+
+     poweroff(0);     
+
+# доступа нет к 1 роутеру $ip1
+} else {
+     
+     echo "false ping ip1 : $ip1";
+     
+     # проверяем доступ к 2 роутеру
+     #
+     # доступ есть к 2 роутеру $ip2
+     if((Test-Connection -ComputerName $ip2 -count $count_ping -quiet) -eq $True){
+
+          echo "true ping ip2 : $ip2";
+          poweroff(0);
+     
+     # доступа нет к 2 роутеру $ip2
+     } else {
+          
+          echo "false ping ip2 : $ip2";
+          
+          if((Test-Connection -ComputerName $ip3 -count $count_ping -quiet) -eq $True){
+
+               echo "true ping ip3 : $ip3";
+               poweroff(0);
+          
+          # проверяем доступ к 3 роутеру
+          #
+          # доступа нет к 3 роутеру $ip3
+          # выключаем сервера, через дополнительную проверку
+          } else {
+               
+               echo "false ping ip3 : $ip3";
+               poweroff(1);
+               
+          }
+     }
+}
+
+
+ПЛАНИРОВЩИК
+# планировщик -File "C:\scripts\poweroff.ps1" -WindowStyle Hidden
