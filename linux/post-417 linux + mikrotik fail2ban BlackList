@@ -1,0 +1,59 @@
+https://www.fizord.ru/post/417
+
+1. mikrotik + linux setting: https://www.fizord.ru/post/416
+
+2. fail2ban setting:
+
+/etc/fail2ban/jail.conf
+
+action_ = %(banaction)s[name=%(__name__)s, bantime="%(bantime)s", port="%(port)s", protocol="%(protocol)s", chain="%(chain)s"]
+
+action = %(action_)s
+telegram[name=%(__name__)s, bantime="%(bantime)s"]
+
+
+/etc/fail2ban/action.d/telegram.conf
+
+
+[Definition]
+
+actionban = /home/dir_shell/fail2ban.sh "ban" "<name>" "<ip>" "<bantime>"
+
+[Init]
+
+name = default
+
+
+/home/dir_shell/fail2ban.sh
+
+#!/bin/bash
+#
+
+if [ -z "$1" ]; then
+     exit 0;
+fi
+
+#curl your telegram bot (your problem)
+
+timeban=$4
+
+#если timeban больше или равно 86400 - сутки
+if [ $timeban -ge 86400 ]; then
+     
+     A=$(($timeban / 86400))
+     #let "A = $timeban / 86400"
+     
+     B=$(($A * 24))
+     #let "B = $A * 24"
+
+     timeout_="$B:00:00"
+else
+     timeout_='01:00:00'
+fi
+
+ssh admin@192.168.0.1 /ip firewall address-list add address=$3 list=BlackList timeout=$timeout_ comment=$2
+
+
+mikrotik:
+
+/ip firewall raw add action=drop chain=prerouting src-address=!192.168.0.1/24 src-address-list=BlackList
