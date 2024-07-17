@@ -1,3 +1,5 @@
+# https://www.fizord.ru/info/719
+
 import time
 import os
 #python -m pip install requests
