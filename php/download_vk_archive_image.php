@@ -1,4 +1,5 @@
 <?php
+// https://www.fizord.ru/info/718
 
 @set_time_limit(3600);
 ini_set('memory_limit', '1024M');
