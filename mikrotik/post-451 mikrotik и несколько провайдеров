@@ -1,0 +1,182 @@
+предположительно 2 провайдера имеют белые ип адреса
+
+1 провайдер ether1
+2 провайдер pppoe-out1
+
+настроем очерёдность, режим резервирования (когда 1 провайдер не будет работать, то автоматически начнёт работать 2 провайдер)
+
+мы должны отключить у обоих провайдеров автоматическое получение dns серевров и автоматическое добавление роутингов
+
+IP - DHCP Client - ether1
+Use Peer DNS: -
+Add Default Route: -
+
+Interfaces - Interface - pppoe-out1
+Use Peer DNS: -
+Add Default Route: -
+
+теперь добавить по умолчанию днс сервера и роутинги двух этих провайдеров
+
+IP - DNS - Servers
+8.8.8.8
+8.8.4.4
+1.1.1.1
+
+IP - Routes - Add new
+Dst. Address: 0.0.0.0/0
+Gateway: %ether1
+Distance: 1
+Routing Table: main
+Comment: wan1route
+
+IP - Routes - Add new
+Dst. Address: 0.0.0.0/0
+Gateway: %pppoe-out1
+Distance: 2
+Routing Table: main
+Comment: wan2route
+
+мы настроили режим резервирования, теперь необходимо настроить чтобы одновременно мы получали запросы от двух провайдеров, например для веб сервера или для днс сервера
+
+Routing - Tables - Add New
+Name: wan1
+FIB: +
+
+Routing - Tables - Add New
+Name: wan2
+FIB: +
+
+Routing - Tables - Add New
+Name: wan1-table
+FIB: +
+
+Routing - Tables - Add New
+Name: wan2-table
+FIB: +
+
+добавим сразу роутинги новые
+
+IP - Routes - Add new
+Dst. Address: 0.0.0.0/0
+Gateway: %ether1
+Distance: 1
+Routing Table: wan1-table
+
+IP - Routes - Add new
+Dst. Address: 0.0.0.0/0
+Gateway: %pppoe-out1
+Distance: 1
+Routing Table: wan2-table
+
+маркируем входящие пакеты от двух провайдеров
+
+1 провайдер
+
+IP - Firewall - Mangle - Add New
+Chain: prerouting
+Dst. Address: 2.2.2.2 (наш 1 внешний ип адрес)
+In. Interface: ether1
+Action: mark connection
+New Connection Mark: wan1-in
+Passthrough: +
+
+IP - Firewall - Mangle - Add New
+Chain: prerouting
+Connection Mark: wan1-in
+Action: mark routing
+New Connection Mark: wan1
+Passthrough: +
+
+IP - Firewall - Mangle - Add New
+Chain: output
+Connection Mark: wan1-in
+Action: mark routing
+New Connection Mark: wan1
+Passthrough: +
+
+IP - Firewall - Mangle - Add New
+Chain: output
+Src. Address: 2.2.2.2 (наш 1 внешний ип адрес)
+Connection Mark: wan1-in
+Action: mark routing
+New Connection Mark: wan1
+Passthrough: +
+
+2 провайдер
+
+IP - Firewall - Mangle - Add New
+Chain: prerouting
+Dst. Address: 3.3.3.3 (наш 2 внешний ип адрес)
+In. Interface: pppoe-out1
+Action: mark connection
+New Connection Mark: wan1-in
+Passthrough: +
+
+IP - Firewall - Mangle - Add New
+Chain: prerouting
+Connection Mark: wan2-in
+Action: mark routing
+New Connection Mark: wan2
+Passthrough: +
+
+IP - Firewall - Mangle - Add New
+Chain: output
+Connection Mark: wan2-in
+Action: mark routing
+New Connection Mark: wan2
+Passthrough: +
+
+IP - Firewall - Mangle - Add New
+Chain: output
+Src. Address: 3.3.3.3 (наш 2 внешний ип адрес)
+Connection Mark: wan2-in
+Action: mark routing
+New Connection Mark: wan2
+Passthrough: +
+
+таким образом у нас будут работать одновременно 2 провайдера на входящий трафик, исходящий трафик будет отправляться через 1 провайдер, возможно так же разделить свою локальную сеть, чтобы часть ип адресов работали через 1 провайдера, а часть через 2 провайдера.
+
+например здесь настройку можно увидеть: https://mikrotiklab.ru/nastrojka/dual-wan-mangle.html
+
+или же настроить так:
+System - Scripts - Add new
+Name: check_internet
+Source:
+
+:local testip mail.ru
+
+
+:local wan1ping [/ping $testip count=1 interface=ether1]
+:local wan2ping [/ping $testip count=1 interface=pppoe-out1]
+
+:local wan1distance [/ip route get [find comment="wan1route"] distance];
+:local wan2distance [/ip route get [find comment="wan2route"] distance];
+
+
+#:put "wan1distance=$wan1distance";
+#:put "wan2distance=$wan2distance";
+
+#:put "wan1ping=$wan1ping";
+#:put "wan2ping=$wan2ping";
+
+
+:if ($wan1ping=0 && $wan1distance=1 && $wan2ping>=1) do={
+
+/ip route set [find comment="wan1route"] distance=2
+/ip route set [find comment="wan2route"] distance=1
+
+}
+
+:if ($wan1ping>=1 && $wan1distance=2) do={
+
+/ip route set [find comment="wan1route"] distance=1
+/ip route set [find comment="wan2route"] distance=2
+
+}
+
+
+System - Sheduler - Add new
+Name: check_internet
+Start Time: 00:00:00
+Interval: 00:00:20
+On Event: /system script run check_internet
