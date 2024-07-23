@@ -1,0 +1,76 @@
+скрипт для бэкапа директорий на windows, в сетевую папку.
+1. делом вы должны открыть сетевую папку, желательно для всех и сделать её скрытой, например добавить знак $ к папке папка$
+2. так же должно быть сетевой подключение у данного компьютера
+3. на компьютер/сервер куда будут копироваться эти файлы, необходимо будет сделать дополнительные действия, для удаления старых файлов
+4. можно сделать всё локально, просто изменить переменную dir_bak_net и добавить в конец скрипта очистку директории от старых файлов
+5. необходимо установить архиватор 7zip в C:\Program Files\7-Zip
+
+код скрипта:
+
+@echo off
+
+setlocal EnableDelayedExpansion
+
+rem название папки данного компьютера
+set namepc=computer1
+
+rem директории для сохранения, перечисление вида: "dir1" "dir2" "dir3"
+set dir_save="D:\test" "D:\test2" "D:\test3" "D:\test_dir\test"
+
+rem куда будет делаться бэкап, ип адрес сетевой папки
+set ip=192.168.1.100
+
+ping -n 1 %ip% | find /i "TTL=">nul
+if %errorlevel%==0 (
+set ip_ping=1
+) else (
+set ip_ping=0
+)
+for /f "delims=" %%a in ('wmic OS Get localdatetime ^| find "."') do set DateTime=%%a
+set Yr=%DateTime:~0,4%
+set Mon=%DateTime:~4,2%
+set Day=%DateTime:~6,2%
+set Hr=%DateTime:~8,2%
+set Min=%DateTime:~10,2%
+set Sec=%DateTime:~12,2%
+set DATETIME=%Yr%%Mon%%Day%_%Hr%%Min%%Sec%
+set DATE=%Yr%%Mon%%Day%
+
+rem куда копируем
+set dir_bak_net=\\%ip%\Backup$
+set namefile=%DATE%_%namepc%
+set dir_bak0=C:\backup_%namepc%
+set dir_bak1=%dir_bak0%\%namefile%
+set dir_7zip=C:\Program Files\7-Zip
+
+if exist "%dir_bak0%" (
+     rmdir /s /q "%dir_bak0%"
+)
+if %ip_ping%==1 (
+     if exist %dir_bak_net%\%namefile%.zip (
+          exit
+     )
+     if exist "%dir_7zip%" (
+          cd /D %dir_7zip%
+          if not exist "%dir_bak0%" (
+               mkdir "%dir_bak0%" 2>nul
+          )
+          if not exist "%dir_bak1%" (
+               mkdir "%dir_bak1%" 2>nul
+               if exist "%dir_bak1%" (
+                    (for %%i in (%dir_save%) do (
+                         set num=!random!
+                         7z.exe a -mx=1 ""%%i_!num!.zip"" ""%%i"" && timeout /t 5
+                         move /Y ""%%i_!num!.zip"" ""%dir_bak1%"" && timeout /t 5
+                    ))
+               )
+          )
+          7z.exe a -mx=1 "%dir_bak1%.zip" "%dir_bak0%" && timeout /t 5
+          rmdir /s /q "%dir_bak1%"
+          copy /Y "%dir_bak1%.zip" "%dir_bak_net%"
+          rmdir /s /q "%dir_bak0%"
+     )
+)
+
+ENDLOCAL
+exit
