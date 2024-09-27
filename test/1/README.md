@@ -1,3 +1,5 @@
+git clone https://github.com/cl0oud/20240926_1
+
 https://zee3.fizord.ru/2024/09/26/_overall_2024_cloud/20240926-175226_TfxvAhcD6-R.zip
 
 CRUD: insert update delete get
